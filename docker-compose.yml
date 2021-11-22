@@ -1,0 +1,44 @@
+version: '3.8'
+
+networks:
+  reverse_proxy:
+    external: true
+
+services:
+  b2b_api:
+    image: b2b_api
+    build:
+      context: .
+    command: bash -c 'while !</dev/tcp/b2b_db/5432; do sleep 1; done; uvicorn app.main:app --host 0.0.0.0 --port 80'
+    volumes:
+      - .:/app
+    environment:
+      - DB_PORT=5432
+      - DB_USER=arthur
+      - DB_NAME=b2b
+      - DB_HOST=b2b_db
+    container_name: b2b_api
+    restart: always
+    ports:
+      - "4433:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    labels:
+      - "traefik.http.routers.b2bapi.rule=Host(`leads.uk.com`) && PathPrefix(`/api/v1`)"
+      - traefik.http.middlewares.api-stripprefix.stripprefix.prefixes=/api/v1
+      - traefik.http.routers.b2bapi.middlewares=api-stripprefix
+      - traefik.http.routers.b2bapi.tls=true
+    secrets:
+      - b2b_db_pass
+      - b2b_api_secret
+      - service_account
+    networks:
+      - reverse_proxy
+
+secrets:
+  b2b_db_pass:
+    file: /home/arthur/B2B/db_pass.txt
+  b2b_api_secret:
+    file: /home/arthur/B2B/api_secret.txt
+  service_account:
+    file: /home/arthur/B2B/bravo-tango-bravo-305e7e39fd14.json
